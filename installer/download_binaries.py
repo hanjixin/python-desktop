@@ -5,6 +5,7 @@ import requests
 import tarfile
 import zipfile
 from pathlib import Path
+import shutil
 
 class BinaryDownloader:
     def __init__(self):
@@ -50,7 +51,33 @@ class BinaryDownloader:
         
         print(f"Downloading Redis for {self.system}...")
         file_path = self.download_file(url, filename)
-        self.extract_file(file_path, redis_dir)
+        
+        # Create a temporary extraction directory
+        extract_temp_dir = self.temp_dir / "redis_extract"
+        extract_temp_dir.mkdir(exist_ok=True)
+        
+        self.extract_file(file_path, extract_temp_dir)
+        
+        # Find the actual extracted directory (e.g., redis-6.2.6)
+        extracted_content_dir = None
+        for item in extract_temp_dir.iterdir():
+            if item.is_dir() and "redis" in item.name:
+                extracted_content_dir = item
+                break
+        
+        if extracted_content_dir:
+            # Move redis-server to redis_dir
+            redis_server_path = extracted_content_dir / "src" / "redis-server"
+            if redis_server_path.exists():
+                shutil.move(str(redis_server_path), str(redis_dir / "redis-server"))
+                print(f"Moved redis-server to {redis_dir}")
+            else:
+                print("Could not find redis-server in extracted directory.")
+        else:
+            print("Could not find extracted Redis content directory.")
+        
+        # Clean up temporary extraction directory
+        shutil.rmtree(extract_temp_dir)
     
     def download_mysql(self):
         """下载MySQL"""
@@ -60,13 +87,50 @@ class BinaryDownloader:
         if self.system == "windows":
             url = "https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.26-winx64.zip"
             filename = "mysql-windows.zip"
-        else:
+        elif self.system == "darwin": # macOS
+            # Using MySQL 8.0.42 for macOS (x86_64) Compressed TAR Archive
+            url = "https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.42-macos15-x86_64.tar.gz"
+            filename = "mysql-macos.tar.gz"
+        else: # linux
             url = "https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.26-linux-glibc2.12-x86_64.tar.xz"
             filename = "mysql-linux.tar.xz"
         
         print(f"Downloading MySQL for {self.system}...")
         file_path = self.download_file(url, filename)
-        self.extract_file(file_path, mysql_dir)
+        
+        # Create a temporary extraction directory
+        extract_temp_dir = self.temp_dir / "mysql_extract"
+        extract_temp_dir.mkdir(exist_ok=True)
+        
+        self.extract_file(file_path, extract_temp_dir)
+        
+        # Find the actual extracted directory (e.g., mysql-8.0.42-macos15-x86_64)
+        extracted_content_dir = None
+        for item in extract_temp_dir.iterdir():
+            if item.is_dir() and "mysql" in item.name:
+                extracted_content_dir = item
+                break
+        
+        if extracted_content_dir:
+            # Move bin and lib directories to mysql_dir
+            # Ensure mysql_dir/bin and mysql_dir/lib exist
+            (mysql_dir / "bin").mkdir(exist_ok=True)
+            (mysql_dir / "lib").mkdir(exist_ok=True)
+
+            # Move contents of extracted_content_dir/bin to mysql_dir/bin
+            for item in (extracted_content_dir / "bin").iterdir():
+                shutil.move(str(item), str(mysql_dir / "bin" / item.name))
+            
+            # Move contents of extracted_content_dir/lib to mysql_dir/lib
+            for item in (extracted_content_dir / "lib").iterdir():
+                shutil.move(str(item), str(mysql_dir / "lib" / item.name))
+            
+            print(f"Moved MySQL binaries to {mysql_dir}")
+        else:
+            print("Could not find extracted MySQL content directory.")
+        
+        # Clean up temporary extraction directory
+        shutil.rmtree(extract_temp_dir)
     
     def download_elasticsearch(self):
         """下载Elasticsearch"""
