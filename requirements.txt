@@ -1,0 +1,8 @@
+redis
+mysql-connector-python
+psutil
+pyinstaller
+fastapi
+uvicorn
+typing
+pydantic
