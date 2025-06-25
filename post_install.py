@@ -45,15 +45,19 @@ def check_middleware_files():
     
     return missing_files
 
-def download_binaries():
+def download_binaries(missing_files):
     """下载所需的中间件二进制文件"""
     print("\nDownloading middleware binaries...")
     downloader = BinaryDownloader()
     try:
-        downloader.download_redis()
-        downloader.download_mysql()
-        downloader.download_elasticsearch()
-        downloader.download_minio()
+        if any("redis" in file for file in missing_files):
+            downloader.download_redis()
+        if any("mysql" in file for file in missing_files):
+            downloader.download_mysql()
+        if any("elasticsearch" in file for file in missing_files):
+            downloader.download_elasticsearch()
+        if any("minio" in file for file in missing_files):
+            downloader.download_minio()
         print("Middleware binaries downloaded successfully!")
     except Exception as e:
         print(f"Error downloading binaries: {e}")
@@ -103,7 +107,7 @@ def main():
         for file in missing_files:
             print(f"- {file}")
         print("\nDownloading missing files...")
-        download_binaries()
+        download_binaries(missing_files)
     
     # 设置配置
     setup_configurations()

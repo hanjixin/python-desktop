@@ -45,6 +45,9 @@ class BinaryDownloader:
         if self.system == "windows":
             url = "https://github.com/microsoftarchive/redis/releases/download/win-3.2.100/Redis-x64-3.2.100.zip"
             filename = "redis-windows.zip"
+        elif self.system == "darwin": # macOS
+            print("On macOS, please install Redis using Homebrew: brew install redis")
+            return
         else:
             url = "https://download.redis.io/releases/redis-6.2.6.tar.gz"
             filename = "redis-linux.tar.gz"
@@ -67,12 +70,19 @@ class BinaryDownloader:
         
         if extracted_content_dir:
             # Move redis-server to redis_dir
+            # For redis-stable.tar.gz, redis-server is usually in the root of the extracted directory after 'make'
+            # However, since we are not running 'make', we need to find the pre-built binary if available or adjust.
+            # For simplicity, we assume it's in 'src' or directly in the extracted root for now.
             redis_server_path = extracted_content_dir / "src" / "redis-server"
+            if not redis_server_path.exists():
+                # Fallback for cases where redis-server might be directly in the extracted root
+                redis_server_path = extracted_content_dir / "redis-server"
+
             if redis_server_path.exists():
                 shutil.move(str(redis_server_path), str(redis_dir / "redis-server"))
                 print(f"Moved redis-server to {redis_dir}")
             else:
-                print("Could not find redis-server in extracted directory.")
+                print("Could not find redis-server in extracted directory. Please ensure Redis is built or download a pre-built binary.")
         else:
             print("Could not find extracted Redis content directory.")
         
