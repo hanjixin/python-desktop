@@ -1,0 +1,5 @@
+# Example of a new file
+REDIS_VERSION = "6.2.6"
+MYSQL_VERSION = "8.0.42"
+ELASTICSEARCH_VERSION = "7.14.0"
+MINIO_VERSION = "release"

@@ -6,6 +6,7 @@ import tarfile
 import zipfile
 from pathlib import Path
 import shutil
+import subprocess
 
 class BinaryDownloader:
     def __init__(self):
@@ -46,7 +47,8 @@ class BinaryDownloader:
             url = "https://github.com/microsoftarchive/redis/releases/download/win-3.2.100/Redis-x64-3.2.100.zip"
             filename = "redis-windows.zip"
         elif self.system == "darwin": # macOS
-            print("On macOS, please install Redis using Homebrew: brew install redis")
+            # For macOS, Redis is expected to be installed via Homebrew, so we don't download it.
+            # This part of the code should ideally not be reached if post_install.py handles macOS correctly.
             return
         else:
             url = "https://download.redis.io/releases/redis-6.2.6.tar.gz"
@@ -60,29 +62,46 @@ class BinaryDownloader:
         extract_temp_dir.mkdir(exist_ok=True)
         
         self.extract_file(file_path, extract_temp_dir)
-        
+
         # Find the actual extracted directory (e.g., redis-6.2.6)
         extracted_content_dir = None
         for item in extract_temp_dir.iterdir():
             if item.is_dir() and "redis" in item.name:
                 extracted_content_dir = item
                 break
-        
-        if extracted_content_dir:
-            # Move redis-server to redis_dir
-            # For redis-stable.tar.gz, redis-server is usually in the root of the extracted directory after 'make'
-            # However, since we are not running 'make', we need to find the pre-built binary if available or adjust.
-            # For simplicity, we assume it's in 'src' or directly in the extracted root for now.
-            redis_server_path = extracted_content_dir / "src" / "redis-server"
-            if not redis_server_path.exists():
-                # Fallback for cases where redis-server might be directly in the extracted root
-                redis_server_path = extracted_content_dir / "redis-server"
 
-            if redis_server_path.exists():
-                shutil.move(str(redis_server_path), str(redis_dir / "redis-server"))
-                print(f"Moved redis-server to {redis_dir}")
+        if extracted_content_dir:
+            if self.system == "linux":
+                print(f"Compiling Redis in {extracted_content_dir}...")
+                try:
+                    subprocess.run(["make"], cwd=extracted_content_dir, check=True)
+                    redis_server_path = extracted_content_dir / "src" / "redis-server"
+                    if redis_server_path.exists():
+                        shutil.move(str(redis_server_path), str(redis_dir / "redis-server"))
+                        print(f"Moved compiled redis-server to {redis_dir}")
+                    else:
+                        print("Could not find compiled redis-server in extracted directory.")
+                except subprocess.CalledProcessError as e:
+                    print(f"Error compiling Redis: {e}")
+                    raise
+            elif self.system == "windows":
+                # For Windows, the downloaded zip contains pre-built binaries
+                redis_server_path = extracted_content_dir / "redis-server.exe"
+                if not redis_server_path.exists():
+                    # Fallback for cases where redis-server.exe might be in a subdirectory
+                    # This might need adjustment based on the actual zip structure
+                    for root, dirs, files in os.walk(extracted_content_dir):
+                        if "redis-server.exe" in files:
+                            redis_server_path = Path(root) / "redis-server.exe"
+                            break
+
+                if redis_server_path.exists():
+                    shutil.move(str(redis_server_path), str(redis_dir / "redis-server.exe"))
+                    print(f"Moved redis-server.exe to {redis_dir}")
+                else:
+                    print("Could not find redis-server.exe in extracted directory.")
             else:
-                print("Could not find redis-server in extracted directory. Please ensure Redis is built or download a pre-built binary.")
+                print("Unsupported system for Redis binary handling.")
         else:
             print("Could not find extracted Redis content directory.")
         
@@ -147,12 +166,14 @@ class BinaryDownloader:
         es_dir = self.middleware_dir / "elasticsearch"
         es_dir.mkdir(exist_ok=True)
         
-        url = "https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-7.14.0-{}.tar.gz"
         if self.system == "windows":
-            url = url.format("windows-x86_64")
-            filename = "elasticsearch-windows.tar.gz"
-        else:
-            url = url.format("linux-x86_64")
+            url = "https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-7.14.0-windows-x86_64.zip"
+            filename = "elasticsearch-windows.zip"
+        elif self.system == "darwin": # macOS
+            url = "https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-7.14.0-darwin-x86_64.tar.gz"
+            filename = "elasticsearch-darwin.tar.gz"
+        else: # linux
+            url = "https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-7.14.0-linux-x86_64.tar.gz"
             filename = "elasticsearch-linux.tar.gz"
         
         print(f"Downloading Elasticsearch for {self.system}...")
